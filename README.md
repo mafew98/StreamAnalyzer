@@ -1,6 +1,7 @@
 The Aim of this project is to query a source of streaming data and run analytics on it. To achieve this, kafka is used to handle the streaming data, pySpark is used to analyse the data and logstash/kibana/opensearch are used to visualize the data.
 
-# Instructions to execute code
+Instructions to execute code:
+----------------------------
 The code for this question is split into different parts. Since there are multiple moving components in the specification, dockers were created to isolate the components and easily manage dependencies.
 
 The docker-compose.yaml contains all the services that are created by the project.
@@ -11,7 +12,7 @@ Steps to Execute:
     
         ./puppeteer
 
-        This command will NOT create the kafka topics and will not use dummy data to run the streaming. This is limited since the News API used in this project is limited to 100 API calls per day in the free version.
+   This command will NOT create the kafka topics and will not use dummy data to run the streaming. This is limited since the News API used in this project is limited to 100 API calls per day in the free version.
     
     1.1 If running the command for the first time, the kafka topics must be created before streaming. Run the following to do so:
 
@@ -21,7 +22,7 @@ Steps to Execute:
     
         ./puppeteer useDummyData
     
-    # NOTE: A first time run should use the following command - ./puppeteer createTopics
+   ** NOTE: A first time run should use the following command - ./puppeteer createTopics
 
     This command will:
           i. Create dockers for zookeeper, kafka, spark, kibana, elasticsearch, logstash.
