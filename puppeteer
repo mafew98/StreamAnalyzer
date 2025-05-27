@@ -1,0 +1,74 @@
+#!/bin/bash
+# Usage: ./puppeteer <phase> <createTopics> <useDummyData>
+
+# Parameters
+phase="$1"
+createTopics="$2"
+useDummyData="$3"
+KAFKA_BROKER="localhost:29092"
+
+if [ "$phase" == "start" ]; then
+    # 1. Starting the dockers
+    docker compose --profile all up -d && \
+    docker compose logs -f zookeeper > ./logs/compose-zookeeper.log 2>&1 &\
+    docker compose logs -f kafka > ./logs/compose-kafka.log 2>&1 &\
+    docker compose logs -f spark > ./logs/compose-spark.log 2>&1 &\
+    docker compose logs -f logstash > ./logs/compose-logstash.log 2>&1 &\
+    docker compose logs -f kibana > ./logs/compose-kibana.log 2>&1 &\
+    docker compose logs -f elasticsearch > ./logs/compose-elasticsearch.log 2>&1 &\
+
+    sleep 10
+    # Wait for Kafka to come up (retry loop)
+    echo "Waiting for Kafka to become available..."
+    for i in {1..10}; do
+        docker exec question1-kafka-1 kafka-broker-api-versions --bootstrap-server "$KAFKA_BROKER" > /dev/null 2>&1
+        if [ $? -eq 0 ]; then
+            echo "Kafka is up!"
+            break
+        fi
+        echo "Kafka not ready yet... retrying in 5 seconds..."
+        sleep 5
+    done
+
+    # Finaly Kafka Validation
+    docker exec question1-kafka-1 kafka-broker-api-versions --bootstrap-server "$KAFKA_BROKER" > /dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        echo "Kafka did not become available. Exiting."
+        exit 1
+    fi
+
+    # 2. Create topics
+    TOPICS=("news-articles" "named-entities")
+
+    if [ "$createTopics" == "createTopics" ]; then
+        echo "Creating Topics"
+        for TOPIC in "${TOPICS[@]}"; do
+            docker exec -d question1-kafka-1 kafka-topics --create --bootstrap-server "$KAFKA_BROKER" \
+                --replication-factor 1 --partitions 1 --topic "$TOPIC" > ./logs/topic-creation.log 2>&1
+        done
+    fi
+
+    # 3. Start data streaming
+    echo "Activating virtual environment"
+    source ./myvenv/bin/activate
+
+    echo "Start Data Streaming"
+    if [ "$useDummyData" == "useDummyData" ]; then
+        nohup python -u sourcer.py useDummyData > ./logs/dataStreaming.log 2>&1 &
+    else
+        nohup python -u sourcer.py > ./logs/dataStreaming.log 2>&1 &
+    fi
+
+    # 4. Create the spark listener
+    echo "Starting Spark Listener"
+    docker exec -d question1-spark-1 bash -c "spark-submit --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0 NECount.py > sparkListener.log 2>&1"
+
+elif [ "$phase" == "stop" ]; then
+    # Kill all sourcers
+    PIDS=$(ps -ef | grep [s]ourcer | awk '{print $2}')
+    if [ -n "$PIDS" ]; then
+      echo "$PIDS" | xargs kill
+    fi
+    # stop all the docker services
+    docker compose --profile all down
+fi

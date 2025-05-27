@@ -1,0 +1,21 @@
+FROM bitnami/spark:3.5.0
+
+# Install spaCy and the English language model
+USER root
+
+# Avoid pip warnings
+ENV PIP_NO_CACHE_DIR=1
+
+# Install pip + spaCy
+RUN apt-get update && apt-get install -y python3-pip && \
+    pip install --upgrade pip && \
+    pip install spacy && \
+    python3 -m spacy download en_core_web_sm && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Copy your PySpark code into the image
+COPY NECount.py /opt/
+WORKDIR /opt
+
+# Command to keep docker alive
+CMD ["tail", "-f", "/dev/null"]
